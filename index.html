@@ -1,1 +1,343 @@
-
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My SkyBlock Loadout</title>
+<style>
+  :root { --bg:#16181e; --text:#e8e8e8; --muted:#9aa0aa; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:"Courier New",monospace;
+         display:flex; flex-direction:column; align-items:center; padding:16px; }
+  h1 { font-size:24px; margin:6px 0 2px; letter-spacing:1px; color:#ffcc33; text-shadow:2px 2px #3f2f00; }
+  .sub { margin:0 0 12px; color:var(--muted); font-size:13px; text-align:center; }
+  #scene { width:100%; max-width:960px; image-rendering:pixelated; border:4px solid #000; display:block; }
+  .bar-wrap { display:flex; align-items:flex-end; gap:10px; margin-top:14px; max-width:100%; flex-wrap:wrap; justify-content:center; }
+  .hotbar { display:flex; background:#000; padding:3px; border:2px solid #555; }
+  .slot { position:relative; width:clamp(30px,9vw,56px); aspect-ratio:1; background:#373737; margin:1px;
+          border:3px solid; border-color:#1f1f1f #8b8b8b #8b8b8b #1f1f1f; cursor:pointer; overflow:hidden; }
+  .slot.sel { outline:3px solid #fff; outline-offset:-1px; z-index:1; }
+  .slot canvas { width:100%; height:100%; image-rendering:pixelated; display:block; }
+  .slot .n { position:absolute; left:2px; top:0; font-size:10px; color:#aaa; }
+  .slot.ench::after { content:""; position:absolute; inset:0; pointer-events:none; mix-blend-mode:screen;
+          background:linear-gradient(115deg,transparent 30%,rgba(170,90,255,.55) 45%,transparent 60%);
+          background-size:300% 100%; animation:glint 3s linear infinite; }
+  @keyframes glint { from{background-position:150% 0} to{background-position:-150% 0} }
+  .off { text-align:center; font-size:11px; color:var(--muted); }
+  #tip { position:fixed; pointer-events:none; display:none; background:rgba(16,0,16,.94);
+         border:2px solid #2d0a63; outline:2px solid rgba(16,0,16,.94); padding:6px 9px; font-size:14px;
+         line-height:1.35; max-width:280px; z-index:10; }
+  #tip .g { color:#aaa; } #tip .b { color:#55ffff; } #tip .e { color:#5555ff; }
+  .gear { max-width:960px; width:100%; margin-top:18px; display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:10px; }
+  .card { background:#22252d; border:2px solid #333844; padding:10px; font-size:13px; }
+  .card b { display:block; margin-bottom:4px; }
+</style>
+</head>
+<body>
+<h1>Bazaar Alley — F7 Ready</h1>
+<p class="sub">Hypixel SkyBlock fan page · hover (or tap) a slot to see the item</p>
+ 
+<canvas id="scene" width="960" height="540"></canvas>
+ 
+<div class="bar-wrap">
+  <div><div class="hotbar" id="off"></div><div class="off">offhand</div></div>
+  <div class="hotbar" id="bar"></div>
+</div>
+ 
+<div class="gear">
+  <div class="card"><b style="color:#ffaa00">You</b>Giant Goldor's Armor (full set) · F7 loadout</div>
+  <div class="card"><b style="color:#55ffff">Reborn Gold</b>Divan's Armor · Giant's Sword</div>
+  <div class="card"><b style="color:#ff5555">Doggy</b>Necron's Armor · Dark Claymore</div>
+  <div class="card"><b style="color:#5555ff">Vallon's</b>Shark Scale Armor · Challenging Rod</div>
+</div>
+ 
+<div id="tip"></div>
+ 
+<script>
+/* ---------- pixel icon drawing (original art, 16x16) ---------- */
+// upscale to 32px, add bevel shading + dark outline for a crisper, more detailed look
+function finish(src){
+  const c=document.createElement('canvas'); c.width=c.height=34; const g=c.getContext('2d');
+  g.imageSmoothingEnabled=false; g.drawImage(src,1,1,32,32);
+  const d=g.getImageData(0,0,34,34), a=d.data, out=new Uint8ClampedArray(a);
+  const A=(x,y)=>(x<0||y<0||x>33||y>33)?0:a[(y*34+x)*4+3];
+  for(let y=0;y<34;y++)for(let x=0;x<34;x++){ const i=(y*34+x)*4;
+    if(a[i+3]){ let f=1;
+      if(!A(x,y-1)||!A(x-1,y)) f=1.35; else if(!A(x,y+1)||!A(x+1,y)) f=0.65;
+      else f=0.92+(((x>>1)*7+(y>>1)*13)%5)*0.04;   // per-pixel grain like game textures
+      for(let k=0;k<3;k++) out[i+k]=Math.min(255,a[i+k]*f); }
+    else if(A(x-1,y)||A(x+1,y)||A(x,y-1)||A(x,y+1)){ out[i]=14; out[i+1]=8; out[i+2]=20; out[i+3]=255; } }
+  g.putImageData(new ImageData(out,34,34),0,0); return c;
+}
+function makeIcon(fn){ const c=document.createElement('canvas'); c.width=c.height=16;
+  const g=c.getContext('2d'); const p=(x,y,col)=>{g.fillStyle=col; g.fillRect(x,y,1,1);}; fn(p,g); return finish(c); }
+ 
+function sword(o){ return makeIcon(p=>{
+  const len=o.len||9, w=o.wide?1:0;
+  for(let i=0;i<len;i++){ const x=5+i, y=10-i; p(x,y,o.blade); p(x+1,y,o.edge); if(w){p(x,y-1,o.edge); p(x+1,y-1,o.blade);} }
+  p(5+len,10-len,o.edge);
+  [[4,11],[3,10],[5,12],[2,9],[6,13]].forEach(([x,y],i)=>p(x,y,i<1?o.gem||o.guard:o.guard));
+  [[3,12],[2,13],[1,14]].forEach(([x,y])=>p(x,y,o.grip)); p(0,15,o.pommel||o.guard);
+});}
+function katana(o){ return makeIcon(p=>{
+  for(let i=0;i<10;i++){ p(5+i,10-i,o.blade); if(i<9)p(6+i,10-i,o.edge); }
+  [[4,10],[5,11],[4,11]].forEach(([x,y])=>p(x,y,o.guard));
+  [[3,12],[2,13],[1,14],[0,15]].forEach(([x,y],i)=>p(x,y,i%2?o.grip:o.wrap));
+});}
+function wand(o){ return makeIcon(p=>{
+  for(let i=0;i<9;i++){ p(2+i,13-i,o.stick); }
+  for(let x=10;x<14;x++)for(let y=2;y<6;y++) p(x,y,(x+y)%3?o.gem:o.shine);
+  p(11,3,'#ffffff');
+});}
+function orb(o){ return makeIcon(p=>{
+  for(let x=0;x<16;x++)for(let y=0;y<16;y++){ const d=Math.hypot(x-7.5,y-7.5);
+    if(d<6.2) p(x,y,d>5?o.dark:(d>3?o.mid:o.light)); }
+  p(5,5,'#ffffff'); p(6,5,'#ffffff'); p(5,6,'#ffffff');
+});}
+function bow(o){ return makeIcon(p=>{
+  for(let a=0;a<=90;a+=4){ const r=a*Math.PI/180; p(Math.round(2+12*Math.cos(r)),Math.round(14-12*Math.sin(r)),a%20?o.wood:o.trim); }
+  for(let i=3;i<14;i++) p(i,i,o.string);
+  p(7,9,o.gem); p(8,8,o.gem);
+});}
+function book(o){ return makeIcon(p=>{
+  for(let x=3;x<13;x++)for(let y=2;y<14;y++) p(x,y,x===3?o.spine:o.cover);
+  for(let y=3;y<13;y++) p(12,y,'#e8e0c8');
+  for(let x=6;x<10;x++)for(let y=6;y<10;y++) p(x,y,(x+y)%2?o.rune:o.cover);
+});}
+function mask(o){ return makeIcon(p=>{
+  for(let y=2;y<15;y++){ const half=y<4?4:(y>12?3:6); for(let x=8-half;x<8+half;x++) p(x,y,o.face); }
+  [[4,6],[5,6],[10,6],[11,6],[4,7],[5,7],[10,7],[11,7]].forEach(([x,y])=>p(x,y,o.eye));
+  for(let x=5;x<11;x++) p(x,11,o.line);
+});}
+function rod(o){ return makeIcon(p=>{
+  for(let i=0;i<12;i++) p(1+i,14-i,i<3?o.grip:o.stick);
+  for(let y=3;y<12;y++) p(13,y,'#dddddd'); p(12,12,'#888'); p(13,12,'#888');
+});}
+ 
+/* ---------- items ---------- */
+const STARS='<span style="color:#ffaa00">✪✪✪✪✪</span>';
+const items=[
+  {name:'Heroic Astraea', col:'#ffaa00', stars:1, lines:['Ultimate Wise V','Ability: Wither Impact'],
+   icon:sword({blade:'#9fe8ff',edge:'#e8fbff',guard:'#d4a017',gem:'#ff55ff',grip:'#5a3a1a'})},
+  {name:'Aspect of the Void', col:'#aa00aa', stars:1, lines:['Ultimate Wise V','Ability: Instant / Ether Transmission'],
+   icon:sword({blade:'#4b1a7a',edge:'#b06cff',guard:'#1a1a1a',gem:'#ff55ff',grip:'#222'})},
+  {name:'Wand of Atonement', col:'#ffaa00', stars:1, lines:['Ultimate Wise V','Ability: Healing Circle'],
+   icon:wand({stick:'#c9a26b',gem:'#ff6699',shine:'#ffd0e0'})},
+  {name:'Spirit Leap', col:'#5555ff', lines:['Leap to a teammate'],
+   icon:orb({dark:'#1f6b55',mid:'#3fbf9a',light:'#a8ffe0'})},
+  {name:'Dungeon Orb', col:'#aa00aa', lines:['Dungeon item'],
+   icon:orb({dark:'#3a0e5a',mid:'#8a3bd1',light:'#e2b8ff'})},
+  {name:'Hasty Terminator', col:'#ffaa00', stars:1, lines:['Ultimate Wise V','Shoots 3 arrows at once'],
+   icon:bow({wood:'#3a2a5a',trim:'#c02b2b',string:'#eeeeee',gem:'#ff3333'})},
+  {name:'Reaper Mask', col:'#ffaa00', stars:1, lines:['Last Stand V'],
+   icon:mask({face:'#2a2a2a',eye:'#ff2222',line:'#555'})},
+  {name:'Spirit Mask', col:'#ffaa00', stars:1, lines:['Last Stand V'],
+   icon:mask({face:'#e8f4ff',eye:'#3aa0ff',line:'#9cc8ee'})},
+  {name:'Atomsplit Katana', col:'#ffaa00', stars:1, lines:['Chimera V','Ability: Soulcry'],
+   icon:katana({blade:'#cfd6e0',edge:'#ffffff',guard:'#c9a227',grip:'#7a1a1a',wrap:'#1a1a1a'})},
+];
+const offItem={name:'Gloomlock Grimoire', col:'#ffaa00', lines:['Ability: Trade health for mana'],
+   icon:book({cover:'#2b1640',spine:'#140a20',rune:'#9b59ff'})};
+ 
+/* ---------- hotbar ---------- */
+const tip=document.getElementById('tip');
+function tipHTML(it){
+  const ref=(it.name.match(/^(Heroic|Hasty)/)||[])[1];
+  return `<div style="color:${it.col};font-weight:bold">${it.name} ${it.stars?STARS:''}</div>`+
+    (ref?`<div class="g">Reforge: <span style="color:#55ff55">${ref}</span></div>`:'')+
+    (it.stars?`<div class="g">Dungeon Stars: <span style="color:#ffaa00">5/5</span></div>`:'')+
+    '<div>&nbsp;</div>'+
+    it.lines.map(l=>/^(Ultimate|Last|Chimera)/.test(l)?`<div class="b"><b>${l}</b></div>`:`<div class="g">${l}</div>`).join('')+
+    `<div>&nbsp;</div><div style="color:#555">Hotbar · F7 loadout</div>`; }
+function addSlot(parent,it,i,sel){
+  const s=document.createElement('div'); s.className='slot'+(sel?' sel':'')+(it.stars||it.lines.some(l=>/V$/.test(l))?' ench':'');
+  const c=document.createElement('canvas'); c.width=c.height=34; c.getContext('2d').drawImage(it.icon,0,0); s.appendChild(c);
+  if(i) { const n=document.createElement('span'); n.className='n'; n.textContent=i; s.appendChild(n); }
+  const show=e=>{ tip.innerHTML=tipHTML(it); tip.style.display='block';
+    const x=Math.min(e.clientX+14, innerWidth-290), y=Math.max(8,e.clientY-tip.offsetHeight-10);
+    tip.style.left=x+'px'; tip.style.top=y+'px'; };
+  s.addEventListener('mousemove',show); s.addEventListener('mouseleave',()=>tip.style.display='none');
+  s.addEventListener('click',e=>{ document.querySelectorAll('.slot').forEach(x=>x.classList.remove('sel')); s.classList.add('sel'); show(e); });
+  parent.appendChild(s);
+}
+items.forEach((it,i)=>addSlot(document.getElementById('bar'),it,i+1,i===0));
+addSlot(document.getElementById('off'),offItem,0,false);
+document.addEventListener('touchstart',e=>{ if(!e.target.closest('.slot')) tip.style.display='none'; });
+ 
+/* ---------- scene ---------- */
+const cv=document.getElementById('scene'), g=cv.getContext('2d'); g.imageSmoothingEnabled=false;
+const R=(x,y,w,h,c)=>{g.fillStyle=c; g.fillRect(x,y,w,h);};
+// seeded noise so the "texture" looks the same every load
+var seed=7, PX=6;
+function rnd(){ seed=(seed*16807)%2147483647; return seed/2147483647; }
+function tex(x,y,w,h,c,cell){ R(x,y,w,h,c); cell=cell||PX;
+  for(let yy=y;yy<y+h;yy+=cell)for(let xx=x;xx<x+w;xx+=cell){ const r=rnd();
+    if(r<0.55) R(xx,yy,Math.min(cell,x+w-xx),Math.min(cell,y+h-yy),shade(c,0.84+r*0.42)); } }
+ 
+// sky
+const sky=g.createLinearGradient(0,0,0,360); sky.addColorStop(0,'#6fb4ff'); sky.addColorStop(1,'#bfe2ff'); R(0,0,960,540,sky);
+// back buildings
+[[0,120,170,'#9c8a6e'],[160,90,210,'#a8946f'],[600,100,200,'#9c8a6e'],[790,130,170,'#8f7d62']].forEach(([x,y,w,c])=>{
+  tex(x,y,w,360-y,c,8); for(let wx=x+20;wx<x+w-20;wx+=40) for(let wy=y+24;wy<330;wy+=50) R(wx,wy,16,20,'#3a4a5c');
+  R(x-6,y-14,w+12,16,'#6b4a2a'); });
+// bazaar stall
+R(360,150,240,210,'#7a5531'); R(370,160,220,190,'#5c3d20');
+for(let i=0;i<12;i++) R(350+i*22,130,22,34,i%2?'#d43c3c':'#f2e6c9');
+R(350,164,264,8,'#3a2510');
+R(410,182,140,26,'#2b1b0a'); g.fillStyle='#ffcc33'; g.font='bold 20px Courier New'; g.textAlign='center'; g.fillText('BAZAAR',480,202);
+for(let i=0;i<6;i++) R(380+i*35,300,26,26,['#e04f4f','#4fb34f','#e0c04f','#4f8fe0','#b04fe0','#e08a4f'][i]);
+// ground
+R(0,360,960,180,'#7d7d7d');
+for(let y=360;y<540;y+=24) for(let x=((y/24)%2)*24-24;x<960;x+=48){ tex(x,y,46,22,'#8e8e8e',6); R(x,y,46,2,'#a3a3a3'); }
+ 
+function shade(hex,f){ const n=parseInt(hex.slice(1),16);
+  const ch=v=>Math.max(0,Math.min(255,Math.round(v*f))).toString(16).padStart(2,'0');
+  return '#'+ch(n>>16)+ch((n>>8)&255)+ch(n&255); }
+// beveled block: light top/left edge, dark bottom/right edge
+function B(x,y,w,h,c,e){ e=e||Math.max(2,Math.round(Math.min(w,h)*0.14));
+  tex(x,y,w,h,c); R(x,y,w,e,shade(c,1.3)); R(x,y,e,h,shade(c,1.15));
+  R(x+w-e,y,e,h,shade(c,0.72)); R(x,y+h-e,w,e,shade(c,0.6)); }
+function glow(fn,col){ g.save(); g.shadowColor=col; g.shadowBlur=12; fn(); g.restore(); }
+ 
+/* --- helmet + detail helpers --- */
+function miniSkull(x,y,s){                       // tiny dark skull with glowing eyes
+  B(x,y,3*s,2.6*s,'#262626',Math.max(1,s*0.3));
+  R(x+0.4*s,y+0.8*s,0.8*s,0.7*s,'#0a0a0a'); R(x+1.8*s,y+0.8*s,0.8*s,0.7*s,'#0a0a0a');
+  glow(()=>{ R(x+0.6*s,y+1*s,0.4*s,0.4*s,'#ff3030'); R(x+2*s,y+1*s,0.4*s,0.4*s,'#ff3030'); },'#ff3030');
+  for(let i=0;i<3;i++) R(x+(0.5+i)*s,y+2*s,0.5*s,0.4*s,'#9a9a9a');
+}
+function scales(x,y,w,h,c,u){                    // overlapping fish-scale rows
+  g.save(); g.beginPath(); g.rect(x,y,w,h); g.clip();
+  const dk=shade(c,0.62), lt=shade(c,1.35);
+  for(let r=0;r*u*0.8<h+u;r++) for(let cc=-1;cc*u<w+u;cc++){
+    const sx=x+cc*u+(r%2?u/2:0), sy=y+r*u*0.8;
+    R(sx,sy+0.7*u,u,0.18*u,dk); R(sx,sy+0.25*u,0.16*u,0.5*u,dk); R(sx+u-0.16*u,sy+0.25*u,0.16*u,0.5*u,dk);
+    R(sx+0.3*u,sy+0.25*u,0.35*u,0.16*u,lt);
+  }
+  g.restore();
+}
+function necronHelm(L,top,u,h){                  // wither-skull style helm
+  B(L,top,8*u,8*u,'#1e1e1e');
+  for(let k=0;k<3;k++) B(L+(0.3+k*2.7)*u,top-1.4*u,1.6*u,1.6*u,'#262626');        // three dark crown nubs
+  B(L+0.8*u,top+1.6*u,6.4*u,5.6*u,'#cfc8b8');                                        // bone face plate
+  R(L+1.4*u,top+2.6*u,2*u,1.8*u,'#0a0a0a'); R(L+4.6*u,top+2.6*u,2*u,1.8*u,'#0a0a0a');  // eye sockets
+  glow(()=>{ R(L+2.1*u,top+3.2*u,0.7*u,0.7*u,'#ff2020'); R(L+5.3*u,top+3.2*u,0.7*u,0.7*u,'#ff2020'); },'#ff2020');
+  R(L+3.6*u,top+4.7*u,0.8*u,0.7*u,'#0a0a0a');                                        // nose
+  R(L+1.4*u,top+5.8*u,5.2*u,0.9*u,'#0a0a0a');
+  for(let i=0;i<5;i++) R(L+(1.6+i*1.05)*u,top+5.8*u,0.6*u,0.6*u,'#e8e2d4');           // teeth
+  R(L+0.8*u,top+1.6*u,6.4*u,h/2,'#8c1c1c');                                          // red brow line
+}
+function sharkHelm(L,top,u,h,a){                 // shark-head helm with open jaws
+  B(L,top,8*u,8*u,a.helm);
+  scales(L,top,8*u,4.6*u,a.helm,u);
+  for(let k=0;k<5;k++) R(L+(3.4-k*0.3)*u,top-(5-k)*u*0.55,(1+k*0.6)*u,u*0.6,shade(a.helm,1.15));  // dorsal fin
+  B(L,top+4.6*u,8*u,3.4*u,'#dfe9f5');                                                // pale jaw
+  R(L+0.8*u,top+4.8*u,6.4*u,1.8*u,'#4a0f22');                                        // mouth
+  for(let i=0;i<6;i++){ R(L+(0.9+i*1.05)*u,top+4.8*u,0.6*u,0.7*u,'#fff');            // top teeth
+                        R(L+(1.4+i*1.05)*u,top+5.9*u,0.6*u,0.7*u,'#fff'); }           // bottom teeth
+  R(L+0.4*u,top+2.4*u,1.2*u,1.2*u,'#050505'); R(L+6.4*u,top+2.4*u,1.2*u,1.2*u,'#050505');  // eyes on the sides
+  R(L+0.6*u,top+2.5*u,0.4*u,0.4*u,'#fff');    R(L+6.6*u,top+2.5*u,0.4*u,0.4*u,'#fff');
+  for(let i=0;i<3;i++){ R(L+(1.9+i*0.5)*u,top+2.6*u,0.2*u,1.4*u,shade(a.helm,0.55));   // gill slits
+                        R(L+(5.4+i*0.5)*u,top+2.6*u,0.2*u,1.4*u,shade(a.helm,0.55)); }
+}
+function divanHelm(L,top,u,h,a){                 // gem-studded dome with a gold band
+  B(L,top,8*u,8*u,a.helm);
+  B(L+3*u,top-1.8*u,2*u,2*u,a.boots); glow(()=>R(L+3.5*u,top-1.4*u,u,u,'#ff4fd8'),'#ff4fd8');
+  R(L+3.5*u,top,u,3*u,a.boots);                                                      // gold center ridge
+  B(L+0.8*u,top+3*u,6.4*u,1.6*u,'#0f3f3c',h/2);                                      // visor slit
+  glow(()=>{ R(L+1.6*u,top+3.4*u,1.6*u,0.7*u,a.eyes); R(L+4.8*u,top+3.4*u,1.6*u,0.7*u,a.eyes); },a.eyes);
+  B(L,top+5.4*u,8*u,1.4*u,a.boots,h/2);                                              // gold band
+  ['#ff3b5c','#3bff8a','#3b8bff','#ffb030','#b05cff'].forEach((c,i)=>glow(()=>R(L+(0.6+i*1.5)*u,top+5.7*u,0.8*u,0.8*u,c),c));
+  R(L,top+7*u,8*u,u,shade(a.helm,0.6));
+}
+ 
+function player(cx,base,u,a,item,name,nameCol){
+  const top=base-32*u, L=cx-4*u, h=u/2, st=a.style; PX=u;
+  g.fillStyle='rgba(0,0,0,.28)'; g.beginPath(); g.ellipse(cx,base,11*u,2.2*u,0,0,7); g.fill();
+ 
+  // ----- legs -----
+  B(L,top+20*u,4*u,12*u,a.legs); B(L+4*u,top+20*u,4*u,12*u,shade(a.legs,0.9));
+  B(L+h,top+23*u,3*u,2*u,a.trim); B(L+4*u+h,top+23*u,3*u,2*u,a.trim);            // knee plates
+  B(L,top+28*u,4*u,4*u,a.boots); B(L+4*u,top+28*u,4*u,4*u,shade(a.boots,0.9));    // boots
+  R(L,top+31*u,8*u,h,shade(a.boots,0.5)); R(L+h,top+28*u,3*u,h,a.trim); R(L+4*u+h,top+28*u,3*u,h,a.trim);
+ 
+  // ----- arms + gauntlets -----
+  for(const ax of [L-4*u,L+8*u]){
+    B(ax,top+8*u,4*u,12*u,a.chest2||a.chest);
+    R(ax+h,top+13*u,3*u,h,shade(a.chest,0.6));                                   // elbow seam
+    B(ax,top+16*u,4*u,4*u,a.boots);                                               // gauntlet
+    R(ax,top+16*u,4*u,h,a.trim);
+  }
+ 
+  // ----- torso -----
+  B(L,top+8*u,8*u,12*u,a.chest);
+  B(L+u,top+9*u,6*u,5*u,a.chest2||shade(a.chest,0.85));                           // chest plate
+  for(let i=0;i<3;i++) R(L+u,top+(15+i*1.2)*u,6*u,h/2,shade(a.chest,0.65));      // ab plates
+  B(L,top+18*u,8*u,1.5*u,a.belt||shade(a.boots,0.8));                             // belt
+  B(L+3*u,top+18*u,2*u,1.5*u,a.trim);                                             // buckle
+  // emblem gem
+  glow(()=>{ R(L+3.5*u,top+10*u,u,u,a.gem); R(L+3*u,top+10.5*u,2*u,h/1,a.gem); R(L+3.5*u,top+10*u,h,h,'#fff'); },a.gem);
+ 
+  // ----- pauldrons -----
+  for(const [px,dir] of [[L-5*u,-1],[L+8*u,1]]){
+    B(px,top+7*u,5*u,3*u,a.trim);
+    R(px+h,top+9*u,4*u,h,shade(a.trim,0.6));
+    R(px+(dir<0?h:3.5*u),top+7.5*u,h,h,shade(a.trim,1.4));                        // rivet
+    if(st==='necron') miniSkull(px+u,top+4.6*u,u);                                 // tiny wither skull on each shoulder
+  }
+  if(st==='necron') miniSkull(L+2.5*u,top+9.2*u,u);                                 // and one on the chest
+ 
+  // ----- set-specific body details -----
+  if(st==='shark'){
+    B(L+2*u,top+14*u,4*u,3.5*u,'#dfe9f5');                                         // pale belly
+    scales(L,top+8*u,2*u,10*u,a.chest,u); scales(L+6*u,top+8*u,2*u,10*u,a.chest,u);
+    scales(L-4*u,top+10*u,4*u,6*u,a.chest2,u); scales(L+8*u,top+10*u,4*u,6*u,a.chest2,u);
+    scales(L,top+20*u,8*u,8*u,a.legs,u);
+  }
+  if(st==='divan'){
+    [['#3bff8a',L+1.2*u,top+15*u],['#ffb030',L+5.8*u,top+15*u],['#ff3b5c',L+1.2*u,top+11*u],['#b05cff',L+5.8*u,top+11*u]]
+      .forEach(([c,x,y])=>glow(()=>{R(x,y,u,u,c); R(x,y,h/2,h/2,'#fff');},c));
+    R(L+3.75*u,top+20*u,h,8*u,a.boots);                                             // gold leg trim
+  }
+ 
+  // ----- helmets: a different shape for each set -----
+  if(st==='necron')      necronHelm(L,top,u,h);
+  else if(st==='shark')  sharkHelm(L,top,u,h,a);
+  else if(st==='divan')  divanHelm(L,top,u,h,a);
+  else {
+    B(L,top,8*u,8*u,a.helm);
+    B(L,top+3*u,8*u,2*u,a.visor,h);
+    glow(()=>{ R(L+u,top+3.5*u,2*u,u,a.eyes); R(L+5*u,top+3.5*u,2*u,u,a.eyes); },a.eyes);
+    R(L+3.5*u,top+5*u,u,2.5*u,shade(a.helm,0.7));
+    R(L,top+7*u,8*u,h,shade(a.helm,0.55));
+    if(st==='goldor'){ B(L+3*u,top-2*u,2*u,3*u,a.trim); R(L,top,8*u,h,a.trim);
+      for(let k=0;k<4;k++) R(L+(k*2+0.75)*u,top+1.5*u,h,h,shade(a.trim,1.3)); }
+  }
+ 
+  // held item (right hand = viewer's left)
+  // mirrored so the blade points up and out, with the grip landing in the fist
+  if(item){ const S=17*u, hx=L-2*u, hy=top+18.5*u, k=30/34;
+    g.save(); g.imageSmoothingEnabled=false; g.translate(hx+(4/34)*S,hy-k*S); g.scale(-1,1);
+    g.drawImage(item,0,0,S,S); g.restore();
+    // fist wrapped over the grip
+    B(L-4.5*u,top+17*u,5*u,3*u,a.boots); R(L-4.5*u,top+17*u,5*u,h,a.trim);
+    for(let f=0;f<3;f++) R(L-4*u+f*1.4*u,top+18.6*u,h/2,1.2*u,shade(a.boots,0.55)); }
+  // nameplate
+  g.font=`bold ${Math.max(14,3*u)}px Courier New`; g.textAlign='center';
+  const w=g.measureText(name).width+12; R(cx-w/2,top-7*u,w,4.2*u,'rgba(0,0,0,.4)');
+  g.fillStyle=nameCol; g.fillText(name,cx,top-3.8*u);
+}
+ 
+const giantSword=sword({blade:'#c0c8d2',edge:'#ffffff',guard:'#7a5531',gem:'#ffcc33',grip:'#4a2f14',wide:1,len:10});
+const darkClay=sword({blade:'#2a2a33',edge:'#7a4fbf',guard:'#111',gem:'#9b59ff',grip:'#1a1a1a',wide:1,len:10});
+const chalRod=rod({stick:'#d4b06a',grip:'#7a1a1a'});
+ 
+player(140,470,6,{style:'divan',helm:'#2ed1c4',visor:'#0f6f68',chest:'#2ed1c4',chest2:'#26b0a5',legs:'#22a399',boots:'#d4a017',trim:'#ffd34d',eyes:'#ffd34d',gem:'#4fc3ff'},giantSword,'Reborn Gold','#55ffff');
+player(330,478,6,{style:'necron',helm:'#2b2b2b',visor:'#8a1111',chest:'#3a0d0d',chest2:'#2b2b2b',legs:'#2b2b2b',boots:'#1a1a1a',trim:'#8c1c1c',eyes:'#ff4444',gem:'#ff2a2a'},darkClay,'Doggy','#ff5555');
+// you — Giant Goldor (drawn slightly bigger)
+player(640,500,7,{style:'goldor',helm:'#c9a227',visor:'#5c4a10',chest:'#d9b438',chest2:'#b8941f',legs:'#c9a227',boots:'#8a6d12',trim:'#e8c04a',eyes:'#fff3a0',gem:'#ffef7a',belt:'#6b4f0a'},items[0].icon,'You','#ffaa00');
+player(840,474,6,{style:'shark',helm:'#3a6fd6',visor:'#16326b',chest:'#4b86ee',chest2:'#3a6fd6',legs:'#3a6fd6',boots:'#22468f',trim:'#7fb6ff',eyes:'#a8f0ff',gem:'#a8f0ff'},chalRod,"Vallon's",'#5555ff');
+</script>
+</body>
+</html>
+ 
