@@ -17,7 +17,8 @@
   .slot { position:relative; width:clamp(30px,9vw,56px); aspect-ratio:1; background:#373737; margin:1px;
           border:3px solid; border-color:#1f1f1f #8b8b8b #8b8b8b #1f1f1f; cursor:pointer; overflow:hidden; }
   .slot.sel { outline:3px solid #fff; outline-offset:-1px; z-index:1; }
-  .slot canvas { width:100%; height:100%; image-rendering:pixelated; display:block; }
+  .slot canvas { width:100%; height:100%; display:block; }
+  .slot { background:radial-gradient(circle at 50% 45%,#4a4a4a,#2f2f2f); }
   .slot .n { position:absolute; left:2px; top:0; font-size:10px; color:#aaa; }
   .slot.ench::after { content:""; position:absolute; inset:0; pointer-events:none; mix-blend-mode:screen;
           background:linear-gradient(115deg,transparent 30%,rgba(170,90,255,.55) 45%,transparent 60%);
@@ -46,9 +47,9 @@
  
 <div class="gear">
   <div class="card"><b style="color:#ffaa00">You</b>Giant Goldor's Armor (full set) · F7 loadout</div>
-  <div class="card"><b style="color:#55ffff">Reborn Gold</b>Divan's Armor · Giant's Sword</div>
-  <div class="card"><b style="color:#ff5555">Doggy</b>Necron's Armor · Dark Claymore</div>
-  <div class="card"><b style="color:#5555ff">Vallon's</b>Shark Scale Armor · Challenging Rod</div>
+  <div class="card"><b style="color:#55ffff">Vallon's</b>Divan's Armor · Divan's Drill</div>
+  <div class="card"><b style="color:#ff5555">Reborn Gold</b>Necron's Armor · Dark Claymore</div>
+  <div class="card"><b style="color:#5599ff">Doggy</b>Shark Scale Armor · Challenging Rod</div>
 </div>
  
 <div id="tip"></div>
@@ -114,30 +115,226 @@ function rod(o){ return makeIcon(p=>{
   for(let y=3;y<12;y++) p(13,y,'#dddddd'); p(12,12,'#888'); p(13,12,'#888');
 });}
  
+/* ---------- detailed item art (64x64, smooth shading) ---------- */
+function rng(s){ return ()=>{ s=(s*16807)%2147483647; return s/2147483647; }; }
+function art(fn){ const c=document.createElement('canvas'); c.width=c.height=64; const x=c.getContext('2d'); x.save(); fn(x); x.restore(); return c; }
+function grad(x,x0,y0,x1,y1,st){ const gr=x.createLinearGradient(x0,y0,x1,y1); st.forEach(([o,c])=>gr.addColorStop(o,c)); return gr; }
+function rad(x,cx,cy,r0,r1,st,fx,fy){ const gr=x.createRadialGradient(fx??cx,fy??cy,r0,cx,cy,r1); st.forEach(([o,c])=>gr.addColorStop(o,c)); return gr; }
+function diag(x){ x.translate(32,32); x.rotate(Math.PI/4); }    // draw tip-up on the axis; ends up pointing top-right
+function sh(x){ x.shadowColor='rgba(0,0,0,.55)'; x.shadowBlur=3; x.shadowOffsetX=1.5; x.shadowOffsetY=1.5; }
+function noSh(x){ x.shadowColor='transparent'; }
+function rr(x,X,Y,W,H,r){ x.beginPath(); x.moveTo(X+r,Y); x.arcTo(X+W,Y,X+W,Y+H,r); x.arcTo(X+W,Y+H,X,Y+H,r); x.arcTo(X,Y+H,X,Y,r); x.arcTo(X,Y,X+W,Y,r); x.closePath(); }
+function speckle(x,n,col,seed,a){ const r=rng(seed); x.fillStyle=col;
+  for(let i=0;i<n;i++){ x.globalAlpha=0.12+r()*0.35; x.fillRect(a[0]+r()*a[2],a[1]+r()*a[3],0.8+r()*1.4,0.8+r()*1.4); } x.globalAlpha=1; }
+function gemDot(x,cx,cy,r,c){ x.fillStyle=rad(x,cx,cy,0.3,r+0.5,[[0,'#fff'],[.4,c],[1,shade(c,.4)]],cx-r*0.35,cy-r*0.35); x.beginPath(); x.arc(cx,cy,r,0,7); x.fill(); }
+ 
+function hilt(x,o){
+  const gw=o.gw||20; x.strokeStyle='rgba(0,0,0,.75)'; x.lineWidth=1;
+  x.fillStyle=grad(x,0,8,0,13,[[0,shade(o.guard,1.5)],[.5,o.guard],[1,shade(o.guard,.5)]]);
+  rr(x,-gw/2,8,gw,5,2); x.fill(); x.stroke();
+  if(o.gem){ gemDot(x,0,10.5,2.8,o.gem); x.beginPath(); x.arc(0,10.5,2.8,0,7); x.stroke(); }
+  x.fillStyle=grad(x,-3,0,3,0,[[0,shade(o.grip,1.4)],[1,shade(o.grip,.55)]]); x.fillRect(-2.6,13,5.2,15);
+  x.strokeStyle=shade(o.grip,.4); for(let y=14;y<27;y+=3){ x.beginPath(); x.moveTo(-2.6,y); x.lineTo(2.6,y+2); x.stroke(); }
+  x.strokeStyle='rgba(0,0,0,.75)'; x.strokeRect(-2.6,13,5.2,15);
+  x.fillStyle=rad(x,0,31,0.5,4.5,[[0,shade(o.guard,1.7)],[.5,o.guard],[1,shade(o.guard,.45)]],-1,30); x.beginPath(); x.arc(0,31,3.8,0,7); x.fill(); x.stroke();
+}
+// two-tone beveled blade: lit half, shadowed half, center ridge, fuller groove and an edge glint
+function bladeArt(o){ return art(x=>{
+  diag(x); const w=o.w||7, t=-38, b=8;
+  const half=s=>{ x.beginPath(); x.moveTo(0,t); x.lineTo(s*w/2,t+w*1.3); x.lineTo(s*w/2,b); x.lineTo(0,b); x.closePath(); };
+  x.save(); sh(x); if(o.glow){ x.shadowColor=o.glow; x.shadowBlur=9; x.shadowOffsetX=0; x.shadowOffsetY=0; }
+  half(-1); x.fillStyle=grad(x,-w/2,0,0,0,[[0,o.edge],[1,o.light]]); x.fill();
+  half(1);  x.fillStyle=grad(x,0,0,w/2,0,[[0,o.mid],[1,o.dark]]); x.fill(); x.restore();
+  x.beginPath(); x.moveTo(0,t); x.lineTo(-w/2,t+w*1.3); x.lineTo(-w/2,b); x.lineTo(w/2,b); x.lineTo(w/2,t+w*1.3); x.closePath();
+  x.strokeStyle='rgba(10,8,20,.9)'; x.lineWidth=1.2; x.stroke();
+  if(o.fuller){ x.strokeStyle='rgba(0,0,0,.35)'; x.lineWidth=1.5; x.beginPath(); x.moveTo(-1.2,t+w*1.7); x.lineTo(-1.2,b-3); x.stroke(); }
+  x.strokeStyle='rgba(255,255,255,.75)'; x.lineWidth=.8; x.beginPath(); x.moveTo(0,t+2); x.lineTo(0,b-1); x.stroke();
+  x.fillStyle='rgba(255,255,255,.9)'; x.fillRect(-w/2+0.8,t+w*1.5,0.9,11);
+  hilt(x,o);
+});}
+function katanaArt(o){ return art(x=>{
+  diag(x); x.save(); sh(x);
+  const edge=()=>{ x.beginPath(); x.moveTo(-2,8); x.quadraticCurveTo(-3.8,-14,2,-38); x.quadraticCurveTo(2.6,-14,2.6,8); x.closePath(); };
+  edge(); x.fillStyle=grad(x,-3,0,3,0,[[0,'#ffffff'],[.4,o.blade],[1,shade(o.blade,.5)]]); x.fill(); x.restore();
+  edge(); x.strokeStyle='rgba(10,10,20,.85)'; x.lineWidth=1; x.stroke();
+  x.strokeStyle='rgba(255,255,255,.8)'; x.lineWidth=.7; x.beginPath();               // wavy temper line
+  for(let y=6;y>-30;y-=3) x.lineTo(-1.1+((y/3)%2?0.5:-0.2)+y*0.02,y); x.stroke();
+  x.strokeStyle='rgba(0,0,0,.8)';
+  x.fillStyle=rad(x,0,10,1,7,[[0,shade(o.guard,1.6)],[.6,o.guard],[1,shade(o.guard,.4)]]); x.beginPath(); x.ellipse(0,10,7,2.6,0,0,7); x.fill(); x.stroke();
+  x.fillStyle=o.grip; x.fillRect(-2.4,12.5,4.8,19); x.strokeRect(-2.4,12.5,4.8,19);
+  x.fillStyle=o.wrap; for(let y=13;y<30;y+=4){ x.beginPath(); x.moveTo(0,y); x.lineTo(2.4,y+2); x.lineTo(0,y+4); x.lineTo(-2.4,y+2); x.closePath(); x.fill(); }
+  x.fillStyle=o.guard; x.fillRect(-2.8,31,5.6,2.6); x.strokeRect(-2.8,31,5.6,2.6);
+});}
+function wandArt(o){ return art(x=>{
+  diag(x); x.save(); sh(x);
+  x.fillStyle=grad(x,-2,0,2,0,[[0,shade(o.stick,1.35)],[1,shade(o.stick,.5)]]); x.fillRect(-1.8,-18,3.6,49); x.restore();
+  x.strokeStyle='rgba(0,0,0,.75)'; x.lineWidth=1; x.strokeRect(-1.8,-18,3.6,49);
+  [-14,4,24].forEach(y=>{ x.fillStyle=grad(x,0,y,0,y+3,[[0,'#fff3a0'],[1,'#8a6d12']]); x.fillRect(-2.7,y,5.4,3); x.strokeRect(-2.7,y,5.4,3); });
+  x.strokeStyle='#d4a017'; x.lineWidth=1.6; x.beginPath(); x.moveTo(-1.5,-18); x.quadraticCurveTo(-8,-26,-3,-33); x.moveTo(1.5,-18); x.quadraticCurveTo(8,-26,3,-33); x.stroke();
+  const P=[[0,-39],[5.5,-29],[0,-20],[-5.5,-29]], path=()=>{ x.beginPath(); P.forEach((p,i)=>i?x.lineTo(...p):x.moveTo(...p)); x.closePath(); };
+  x.save(); x.shadowColor=o.gem; x.shadowBlur=11; path(); x.fillStyle=o.gem; x.fill(); x.restore();
+  x.fillStyle=shade(o.gem,1.55); x.beginPath(); x.moveTo(0,-39); x.lineTo(-5.5,-29); x.lineTo(0,-29); x.closePath(); x.fill();
+  x.fillStyle=shade(o.gem,.55); x.beginPath(); x.moveTo(0,-20); x.lineTo(5.5,-29); x.lineTo(0,-29); x.closePath(); x.fill();
+  path(); x.strokeStyle='rgba(0,0,0,.8)'; x.stroke();
+});}
+function orbArt(o){ return art(x=>{
+  x.save(); x.shadowColor=o.glow; x.shadowBlur=10;
+  x.fillStyle=rad(x,32,32,2,22,[[0,o.light],[.55,o.mid],[1,o.dark]],25,24); x.beginPath(); x.arc(32,32,21,0,7); x.fill(); x.restore();
+  x.save(); x.beginPath(); x.arc(32,32,21,0,7); x.clip();
+  x.strokeStyle=o.swirl; x.lineWidth=2.2; x.globalAlpha=.65; x.beginPath();
+  for(let a=0;a<12;a+=.15){ const r=2+a*1.45; x.lineTo(32+Math.cos(a)*r,32+Math.sin(a)*r); } x.stroke(); x.globalAlpha=1;
+  speckle(x,60,'#ffffff',o.seed||3,[11,11,42,42]); x.restore();
+  x.strokeStyle='rgba(0,0,0,.75)'; x.lineWidth=1.5; x.beginPath(); x.arc(32,32,21,0,7); x.stroke();
+  x.fillStyle='rgba(255,255,255,.85)'; x.beginPath(); x.ellipse(24,22,6.5,3.5,-0.6,0,7); x.fill();
+  x.fillStyle='rgba(255,255,255,.35)'; x.beginPath(); x.arc(41,43,3,0,7); x.fill();
+});}
+function bowArt(o){ return art(x=>{
+  diag(x); x.translate(8,0); x.lineCap='round';
+  const limb=()=>{ x.beginPath(); x.moveTo(-4,-36); x.quadraticCurveTo(-26,0,-4,36); };
+  x.save(); sh(x); limb(); x.strokeStyle='rgba(0,0,0,.85)'; x.lineWidth=7; x.stroke(); x.restore();
+  limb(); x.strokeStyle=grad(x,-20,0,-4,0,[[0,shade(o.wood,1.7)],[1,shade(o.wood,.75)]]); x.lineWidth=4.6; x.stroke();
+  x.strokeStyle=o.trim; x.lineWidth=1.4; x.setLineDash([3,4]); x.beginPath(); x.moveTo(-5,-30); x.quadraticCurveTo(-23,0,-5,30); x.stroke(); x.setLineDash([]);
+  [-34,34].forEach(y=>{ x.fillStyle='#c9a227'; x.beginPath(); x.arc(-4,y,2.2,0,7); x.fill(); });
+  x.strokeStyle='rgba(240,240,240,.9)'; x.lineWidth=.9; x.beginPath(); x.moveTo(-4,-36); x.lineTo(-4,36); x.stroke();
+  x.fillStyle='#2a1a10'; rr(x,-18,-6,6,12,2); x.fill(); x.strokeStyle='#000'; x.lineWidth=.8; x.stroke();
+  gemDot(x,-15,0,3,o.gem);
+});}
+function maskArt(o){ return art(x=>{
+  const face=()=>{ x.beginPath(); x.moveTo(32,6); x.bezierCurveTo(52,6,56,20,54,32); x.bezierCurveTo(52,46,42,58,32,59);
+    x.bezierCurveTo(22,58,12,46,10,32); x.bezierCurveTo(8,20,12,6,32,6); x.closePath(); };
+  x.save(); sh(x); if(o.aura){ x.shadowColor=o.aura; x.shadowBlur=10; x.shadowOffsetX=0; x.shadowOffsetY=0; }
+  face(); x.fillStyle=rad(x,32,28,4,32,[[0,o.light],[.6,o.face],[1,o.dark]],26,20); x.fill(); x.restore();
+  x.save(); face(); x.clip();
+  speckle(x,320,o.grain,o.seed,[8,4,48,56]);                                      // surface grain
+  x.strokeStyle=o.crack; x.lineWidth=.9;
+  o.cracks.forEach(c=>{ x.beginPath(); c.forEach((p,i)=>i?x.lineTo(...p):x.moveTo(...p)); x.stroke(); });
+  x.fillStyle=grad(x,0,18,0,27,[[0,'rgba(0,0,0,0)'],[1,'rgba(0,0,0,.35)']]); x.fillRect(8,18,48,9);   // brow shadow
+  x.fillStyle='rgba(255,255,255,.18)'; x.beginPath(); x.ellipse(22,40,5,3,0,0,7); x.ellipse(42,40,5,3,0,0,7); x.fill(); // cheekbones
+  x.restore();
+  face(); x.strokeStyle='rgba(0,0,0,.85)'; x.lineWidth=1.5; x.stroke();
+  [[22,30,1],[42,30,-1]].forEach(([ex,ey,s])=>{
+    x.beginPath(); x.ellipse(ex,ey,6.5,4,s*0.25,0,7); x.fillStyle='#050505'; x.fill();
+    x.strokeStyle='rgba(255,255,255,.25)'; x.lineWidth=.8; x.beginPath(); x.ellipse(ex,ey+0.8,6.5,4,s*0.25,0.2,2.9); x.stroke();
+    x.save(); x.shadowColor=o.eye; x.shadowBlur=9; x.fillStyle=o.eye; x.beginPath(); x.arc(ex,ey,2.1,0,7); x.fill(); x.restore(); });
+  x.fillStyle='rgba(0,0,0,.6)'; x.beginPath(); x.moveTo(32,35); x.lineTo(29.5,42); x.lineTo(34.5,42); x.closePath(); x.fill();
+  x.strokeStyle=o.mouth; x.lineWidth=1.3; x.beginPath(); x.moveTo(23,49); x.quadraticCurveTo(32,53,41,49); x.stroke();
+  for(let i=0;i<5;i++){ x.beginPath(); x.moveTo(25+i*3.5,48.6); x.lineTo(25+i*3.5,53); x.stroke(); }
+  x.strokeStyle='rgba(255,255,255,.4)'; x.lineWidth=1.2; x.beginPath(); x.arc(32,32,22,Math.PI*1.1,Math.PI*1.45); x.stroke();
+});}
+function bookArt(o){ return art(x=>{
+  x.save(); sh(x); rr(x,12,8,40,48,3); x.fillStyle=grad(x,12,0,52,0,[[0,shade(o.cover,.6)],[.18,shade(o.cover,1.35)],[1,o.cover]]); x.fill(); x.restore();
+  x.save(); rr(x,12,8,40,48,3); x.clip(); speckle(x,260,'#000',11,[12,8,40,48]); speckle(x,80,'#ffffff',12,[18,8,30,48]); x.restore();
+  x.fillStyle='#efe6cc'; x.fillRect(48,11,4,42); x.strokeStyle='rgba(120,100,70,.6)'; x.lineWidth=.5;
+  for(let y=12;y<53;y+=2){ x.beginPath(); x.moveTo(48,y); x.lineTo(52,y); x.stroke(); }
+  x.fillStyle=shade(o.cover,.5); x.fillRect(12,8,6,48); x.fillStyle='#c9a227'; [14,30,46].forEach(y=>x.fillRect(12,y,6,2.5));
+  x.fillStyle=grad(x,0,0,64,64,[[0,'#fff3a0'],[1,'#8a6d12']]);
+  [[52,8,-1,1],[52,56,-1,-1],[18,8,1,1],[18,56,1,-1]].forEach(([cx,cy,dx,dy])=>{ x.beginPath(); x.moveTo(cx,cy); x.lineTo(cx+dx*7,cy); x.lineTo(cx,cy+dy*7); x.closePath(); x.fill(); });
+  x.save(); x.shadowColor=o.rune; x.shadowBlur=10; x.strokeStyle=o.rune; x.lineWidth=1.6;
+  x.beginPath(); x.arc(33,32,10,0,7); x.stroke();
+  x.beginPath(); for(let i=0;i<=5;i++){ const a=-Math.PI/2+i*4*Math.PI/5; x.lineTo(33+Math.cos(a)*10,32+Math.sin(a)*10); } x.stroke(); x.restore();
+  rr(x,12,8,40,48,3); x.strokeStyle='rgba(0,0,0,.85)'; x.lineWidth=1.4; x.stroke();
+});}
+function drillArt(){ return art(x=>{
+  diag(x); const cone=()=>{ x.beginPath(); x.moveTo(0,-39); x.lineTo(8,-4); x.lineTo(-8,-4); x.closePath(); };
+  x.save(); sh(x); cone(); x.fillStyle=grad(x,-8,0,8,0,[[0,'#f4f7fa'],[.45,'#b9c2cc'],[1,'#56606a']]); x.fill(); x.restore();
+  x.save(); cone(); x.clip(); x.strokeStyle='rgba(30,40,50,.55)'; x.lineWidth=1.7;
+  for(let y=-38;y<2;y+=5){ x.beginPath(); x.moveTo(-9,y+4); x.lineTo(9,y-2); x.stroke(); } x.restore();
+  cone(); x.strokeStyle='rgba(0,0,0,.8)'; x.lineWidth=1.1; x.stroke();
+  rr(x,-9,-4,18,16,3); x.fillStyle=grad(x,-9,0,9,0,[[0,'#fff3a0'],[.4,'#d4a017'],[1,'#6b4f0a']]); x.fill(); x.stroke();
+  [['#ff3b5c',-4.5,0],['#3bff8a',0,0],['#3b8bff',4.5,0],['#b05cff',-2.2,6],['#ffb030',2.2,6]].forEach(([c,gx,gy])=>gemDot(x,gx,gy,1.9,c));
+  x.fillStyle=grad(x,-3,0,3,0,[[0,'#7a5531'],[1,'#3a2510']]); x.fillRect(-3,12,6,18); x.strokeRect(-3,12,6,18);
+  x.fillStyle='#d4a017'; x.fillRect(-3.5,29,7,3); x.strokeRect(-3.5,29,7,3);
+});}
+function rodArt(o){ return art(x=>{
+  x.save(); diag(x); x.lineCap='round';
+  const pole=()=>{ x.beginPath(); x.moveTo(0,30); x.quadraticCurveTo(2,-6,-3,-38); };
+  x.save(); sh(x); pole(); x.strokeStyle='rgba(0,0,0,.85)'; x.lineWidth=4.6; x.stroke(); x.restore();
+  pole(); x.strokeStyle=grad(x,-2,0,2,0,[[0,shade(o.stick,1.45)],[1,shade(o.stick,.7)]]); x.lineWidth=2.6; x.stroke();
+  x.strokeStyle=o.grip; x.lineWidth=4.2; x.beginPath(); x.moveTo(0,30); x.lineTo(0.3,17); x.stroke();
+  x.fillStyle=rad(x,3.6,12,.5,4,[[0,'#f0f0f0'],[1,'#555']]); x.beginPath(); x.arc(3.6,12,3.2,0,7); x.fill(); x.strokeStyle='#000'; x.lineWidth=.8; x.stroke();
+  x.restore();
+  const c=Math.SQRT1_2, tx=32+(-3*c+38*c), ty=32+(-3*c-38*c);                      // rod tip in screen space
+  x.strokeStyle='rgba(240,240,240,.9)'; x.lineWidth=.8; x.beginPath(); x.moveTo(tx,ty); x.lineTo(tx,ty+28); x.stroke();
+  x.strokeStyle='#bbb'; x.lineWidth=1.3; x.beginPath(); x.arc(tx-2,ty+28,2,0,Math.PI); x.stroke();
+});}
+ 
+// legendary blade: aura, glowing energy core, winged gold guard, sparkles
+function star(x,cx,cy,r,col){ x.save(); x.shadowColor=col; x.shadowBlur=6; x.fillStyle='#fff'; x.beginPath();
+  for(let i=0;i<8;i++){ const a=i*Math.PI/4, rr2=i%2?r*0.3:r; x.lineTo(cx+Math.cos(a)*rr2,cy+Math.sin(a)*rr2); } x.closePath(); x.fill(); x.restore(); }
+function heroArt(o){ return art(x=>{
+  x.fillStyle=rad(x,38,26,1,32,[[0,o.aura1],[.5,o.aura2],[1,'rgba(0,0,0,0)']]); x.fillRect(0,0,64,64);   // power aura
+  x.save(); diag(x);
+  const w=o.w||9.5, t=-41, b=7;
+  const half=s=>{ x.beginPath(); x.moveTo(0,t); x.lineTo(s*w/2,t+w*1.2); x.lineTo(s*w/2,b-3); x.lineTo(s*w*0.32,b); x.lineTo(0,b); x.closePath(); };
+  x.save(); x.shadowColor=o.glow; x.shadowBlur=12;
+  half(-1); x.fillStyle=grad(x,-w/2,0,0,0,[[0,o.edge],[1,o.light]]); x.fill();
+  half(1);  x.fillStyle=grad(x,0,0,w/2,0,[[0,o.mid],[1,o.dark]]); x.fill(); x.restore();
+  x.beginPath(); x.moveTo(0,t); x.lineTo(-w/2,t+w*1.2); x.lineTo(-w/2,b-3); x.lineTo(-w*0.32,b); x.lineTo(w*0.32,b); x.lineTo(w/2,b-3); x.lineTo(w/2,t+w*1.2); x.closePath();
+  x.strokeStyle='rgba(20,10,40,.9)'; x.lineWidth=1.2; x.stroke();
+  // engraved edge notches
+  x.strokeStyle='rgba(60,40,110,.6)'; x.lineWidth=.8;
+  for(let y=-24;y<4;y+=6){ x.beginPath(); x.moveTo(-w/2,y); x.lineTo(-w/2+2,y+1.5); x.moveTo(w/2,y); x.lineTo(w/2-2,y+1.5); x.stroke(); }
+  // glowing energy core
+  x.save(); x.shadowColor=o.core; x.shadowBlur=12; x.strokeStyle=o.core; x.lineWidth=w*0.32; x.lineCap='round';
+  x.beginPath(); x.moveTo(0,t+w*1.1); x.lineTo(0,b-2); x.stroke(); x.restore();
+  x.strokeStyle='rgba(255,255,255,.95)'; x.lineWidth=1; x.beginPath(); x.moveTo(0,t+w*1.15); x.lineTo(0,b-3); x.stroke();
+  // glowing runes carved into the core
+  x.save(); x.shadowColor='#ffffff'; x.shadowBlur=6; x.strokeStyle='#fff7ff'; x.lineWidth=.9;
+  [-24,-15,-6].forEach((y,i)=>{ x.beginPath();
+    if(i===0){ x.moveTo(0,y-2.5); x.lineTo(2,y); x.lineTo(0,y+2.5); x.lineTo(-2,y); x.closePath(); }
+    else if(i===1){ x.arc(0,y,2.2,0,7); x.moveTo(-2.2,y); x.lineTo(2.2,y); }
+    else { x.moveTo(-2,y-2); x.lineTo(2,y+2); x.moveTo(2,y-2); x.lineTo(-2,y+2); }
+    x.stroke(); }); x.restore();
+  x.fillStyle='rgba(255,255,255,.95)'; x.fillRect(-w/2+1,t+w*1.35,1.2,15);                     // edge glint
+  // swirling energy wisps wrapped around the blade
+  x.save(); x.lineCap='round'; x.shadowColor=o.glow; x.shadowBlur=8;
+  [[0,'rgba(220,170,255,.55)'],[Math.PI,'rgba(255,255,255,.4)']].forEach(([ph,col])=>{
+    x.strokeStyle=col; x.lineWidth=0.9; x.beginPath();
+    for(let y=b-2;y>t+6;y-=1) x.lineTo(Math.sin(y*0.28+ph)*(w/2+3.2),y); x.stroke(); });
+  x.restore();
+  hilt(x,{guard:o.guard,grip:o.grip,gw:10});
+  // swept gold wings
+  [-1,1].forEach(s=>{
+    x.beginPath(); x.moveTo(s*3,8); x.quadraticCurveTo(s*11,8.5,s*18,1); x.lineTo(s*16,6.5);
+    x.quadraticCurveTo(s*12,10.5,s*14.5,15); x.lineTo(s*3,13.5); x.closePath();
+    x.fillStyle=grad(x,0,1,0,15,[[0,'#fff6b8'],[.45,o.guard],[1,'#6b4f0a']]); x.fill();
+    x.strokeStyle='rgba(40,25,0,.9)'; x.lineWidth=1; x.stroke();
+    x.strokeStyle='rgba(120,85,10,.8)'; x.lineWidth=.7;
+    x.beginPath(); x.moveTo(s*5,10); x.quadraticCurveTo(s*11,9.5,s*15,5); x.moveTo(s*5,12); x.quadraticCurveTo(s*10,12,s*12.5,12.5); x.stroke();
+  });
+  x.save(); x.shadowColor=o.gem; x.shadowBlur=10; gemDot(x,0,10.7,3.7,o.gem); x.restore();
+  x.strokeStyle='rgba(0,0,0,.8)'; x.lineWidth=1; x.beginPath(); x.arc(0,10.7,3.7,0,7); x.stroke();
+  x.restore();
+  [[54,8,4.5,o.glow],[59,25,2.6,o.glow],[38,4,2.4,o.glow],[12,50,2.4,o.glow],[48,34,1.8,o.glow],[27,14,1.8,o.glow],[60,40,1.5,o.glow]].forEach(a=>star(x,...a));
+});}
+ 
 /* ---------- items ---------- */
 const STARS='<span style="color:#ffaa00">✪✪✪✪✪</span>';
 const items=[
   {name:'Heroic Astraea', col:'#ffaa00', stars:1, lines:['Ultimate Wise V','Ability: Wither Impact'],
-   icon:sword({blade:'#9fe8ff',edge:'#e8fbff',guard:'#d4a017',gem:'#ff55ff',grip:'#5a3a1a'})},
+   icon:heroArt({w:14,light:'#ffffff',edge:'#f6f2ff',mid:'#cbc4ea',dark:'#4a3d80',glow:'#c08cff',core:'#c27bff',
+     aura1:'rgba(210,140,255,.75)',aura2:'rgba(130,60,255,.28)',guard:'#e0b02a',gem:'#ff4fd8',grip:'#3a1f4a'})},
   {name:'Aspect of the Void', col:'#aa00aa', stars:1, lines:['Ultimate Wise V','Ability: Instant / Ether Transmission'],
-   icon:sword({blade:'#4b1a7a',edge:'#b06cff',guard:'#1a1a1a',gem:'#ff55ff',grip:'#222'})},
+   icon:bladeArt({w:7,light:'#b07ae6',edge:'#e3c6ff',mid:'#5a2a8a',dark:'#1f0a33',glow:'#a050ff',guard:'#2e2e2e',gem:'#ff55ff',grip:'#222222'})},
   {name:'Wand of Atonement', col:'#ffaa00', stars:1, lines:['Ultimate Wise V','Ability: Healing Circle'],
-   icon:wand({stick:'#c9a26b',gem:'#ff6699',shine:'#ffd0e0'})},
+   icon:wandArt({stick:'#c9a26b',gem:'#ff6699'})},
   {name:'Spirit Leap', col:'#5555ff', lines:['Leap to a teammate'],
-   icon:orb({dark:'#1f6b55',mid:'#3fbf9a',light:'#a8ffe0'})},
+   icon:orbArt({dark:'#0f4a3a',mid:'#2fae88',light:'#c8fff0',glow:'#4fffc0',swirl:'#e0fff6',seed:5})},
   {name:'Dungeon Orb', col:'#aa00aa', lines:['Dungeon item'],
-   icon:orb({dark:'#3a0e5a',mid:'#8a3bd1',light:'#e2b8ff'})},
+   icon:orbArt({dark:'#2a0848',mid:'#7a2fc4',light:'#ecd0ff',glow:'#b060ff',swirl:'#f3e0ff',seed:9})},
   {name:'Hasty Terminator', col:'#ffaa00', stars:1, lines:['Ultimate Wise V','Shoots 3 arrows at once'],
-   icon:bow({wood:'#3a2a5a',trim:'#c02b2b',string:'#eeeeee',gem:'#ff3333'})},
+   icon:bowArt({wood:'#3a2a5a',trim:'#e03030',gem:'#ff3333'})},
   {name:'Reaper Mask', col:'#ffaa00', stars:1, lines:['Last Stand V'],
-   icon:mask({face:'#2a2a2a',eye:'#ff2222',line:'#555'})},
+   icon:maskArt({face:'#2d2d33',light:'#5a5a64',dark:'#0b0b0e',grain:'#000000',crack:'rgba(220,40,40,.8)',eye:'#ff2020',aura:'rgba(255,30,30,.6)',mouth:'#8a8a8a',seed:21,
+     cracks:[[[30,7],[28,13],[31,17],[28,22]],[[50,38],[45,42],[46,48]],[[14,40],[18,44]]]})},
   {name:'Spirit Mask', col:'#ffaa00', stars:1, lines:['Last Stand V'],
-   icon:mask({face:'#e8f4ff',eye:'#3aa0ff',line:'#9cc8ee'})},
+   icon:maskArt({face:'#dce9f5',light:'#ffffff',dark:'#8fb0cc',grain:'#5d7a96',crack:'rgba(90,120,150,.7)',eye:'#3ab8ff',aura:'rgba(140,210,255,.9)',mouth:'#5d7a96',seed:33,
+     cracks:[[[36,7],[38,12],[35,16]],[[13,36],[17,39],[16,44]]]})},
   {name:'Atomsplit Katana', col:'#ffaa00', stars:1, lines:['Chimera V','Ability: Soulcry'],
-   icon:katana({blade:'#cfd6e0',edge:'#ffffff',guard:'#c9a227',grip:'#7a1a1a',wrap:'#1a1a1a'})},
+   icon:katanaArt({blade:'#cfd6e0',guard:'#c9a227',grip:'#7a1a1a',wrap:'#151515'})},
 ];
 const offItem={name:'Gloomlock Grimoire', col:'#ffaa00', lines:['Ability: Trade health for mana'],
-   icon:book({cover:'#2b1640',spine:'#140a20',rune:'#9b59ff'})};
+   icon:bookArt({cover:'#3a1d57',rune:'#b57bff'})};
  
 /* ---------- hotbar ---------- */
 const tip=document.getElementById('tip');
@@ -151,7 +348,7 @@ function tipHTML(it){
     `<div>&nbsp;</div><div style="color:#555">Hotbar · F7 loadout</div>`; }
 function addSlot(parent,it,i,sel){
   const s=document.createElement('div'); s.className='slot'+(sel?' sel':'')+(it.stars||it.lines.some(l=>/V$/.test(l))?' ench':'');
-  const c=document.createElement('canvas'); c.width=c.height=34; c.getContext('2d').drawImage(it.icon,0,0); s.appendChild(c);
+  const c=document.createElement('canvas'); c.width=c.height=64; c.getContext('2d').drawImage(it.icon,0,0); s.appendChild(c);
   if(i) { const n=document.createElement('span'); n.className='n'; n.textContent=i; s.appendChild(n); }
   const show=e=>{ tip.innerHTML=tipHTML(it); tip.style.display='block';
     const x=Math.min(e.clientX+14, innerWidth-290), y=Math.max(8,e.clientY-tip.offsetHeight-10);
@@ -172,7 +369,7 @@ var seed=7, PX=6;
 function rnd(){ seed=(seed*16807)%2147483647; return seed/2147483647; }
 function tex(x,y,w,h,c,cell){ R(x,y,w,h,c); cell=cell||PX;
   for(let yy=y;yy<y+h;yy+=cell)for(let xx=x;xx<x+w;xx+=cell){ const r=rnd();
-    if(r<0.55) R(xx,yy,Math.min(cell,x+w-xx),Math.min(cell,y+h-yy),shade(c,0.84+r*0.42)); } }
+    if(r<0.4) R(xx,yy,Math.min(cell,x+w-xx),Math.min(cell,y+h-yy),shade(c,0.94+r*0.3)); } }
  
 // sky
 const sky=g.createLinearGradient(0,0,0,360); sky.addColorStop(0,'#6fb4ff'); sky.addColorStop(1,'#bfe2ff'); R(0,0,960,540,sky);
@@ -316,8 +513,8 @@ function player(cx,base,u,a,item,name,nameCol){
  
   // held item (right hand = viewer's left)
   // mirrored so the blade points up and out, with the grip landing in the fist
-  if(item){ const S=17*u, hx=L-2*u, hy=top+18.5*u, k=30/34;
-    g.save(); g.imageSmoothingEnabled=false; g.translate(hx+(4/34)*S,hy-k*S); g.scale(-1,1);
+  if(item){ const S=20*u, hx=L-2*u, hy=top+18.5*u;
+    g.save(); g.imageSmoothingEnabled=true; g.translate(hx+0.28*S,hy-0.72*S); g.scale(-1,1);
     g.drawImage(item,0,0,S,S); g.restore();
     // fist wrapped over the grip
     B(L-4.5*u,top+17*u,5*u,3*u,a.boots); R(L-4.5*u,top+17*u,5*u,h,a.trim);
@@ -328,15 +525,15 @@ function player(cx,base,u,a,item,name,nameCol){
   g.fillStyle=nameCol; g.fillText(name,cx,top-3.8*u);
 }
  
-const giantSword=sword({blade:'#c0c8d2',edge:'#ffffff',guard:'#7a5531',gem:'#ffcc33',grip:'#4a2f14',wide:1,len:10});
-const darkClay=sword({blade:'#2a2a33',edge:'#7a4fbf',guard:'#111',gem:'#9b59ff',grip:'#1a1a1a',wide:1,len:10});
-const chalRod=rod({stick:'#d4b06a',grip:'#7a1a1a'});
+const darkClay=bladeArt({w:11,light:'#5c5c6e',edge:'#a58ae0',mid:'#2a2a33',dark:'#0b0b10',glow:'#8a5cff',guard:'#1c1c1c',gem:'#9b59ff',grip:'#1a1a1a',gw:26,fuller:1});
+const chalRod=rodArt({stick:'#d4b06a',grip:'#7a1a1a'});
+const divanDrill=drillArt();
  
-player(140,470,6,{style:'divan',helm:'#2ed1c4',visor:'#0f6f68',chest:'#2ed1c4',chest2:'#26b0a5',legs:'#22a399',boots:'#d4a017',trim:'#ffd34d',eyes:'#ffd34d',gem:'#4fc3ff'},giantSword,'Reborn Gold','#55ffff');
-player(330,478,6,{style:'necron',helm:'#2b2b2b',visor:'#8a1111',chest:'#3a0d0d',chest2:'#2b2b2b',legs:'#2b2b2b',boots:'#1a1a1a',trim:'#8c1c1c',eyes:'#ff4444',gem:'#ff2a2a'},darkClay,'Doggy','#ff5555');
+player(140,470,6,{style:'divan',helm:'#2ed1c4',visor:'#0f6f68',chest:'#2ed1c4',chest2:'#26b0a5',legs:'#22a399',boots:'#d4a017',trim:'#ffd34d',eyes:'#ffd34d',gem:'#4fc3ff'},divanDrill,"Vallon's",'#55ffff');
+player(330,478,6,{style:'necron',helm:'#2b2b2b',visor:'#8a1111',chest:'#3a0d0d',chest2:'#2b2b2b',legs:'#2b2b2b',boots:'#1a1a1a',trim:'#8c1c1c',eyes:'#ff4444',gem:'#ff2a2a'},darkClay,'Reborn Gold','#ff5555');
 // you — Giant Goldor (drawn slightly bigger)
 player(640,500,7,{style:'goldor',helm:'#c9a227',visor:'#5c4a10',chest:'#d9b438',chest2:'#b8941f',legs:'#c9a227',boots:'#8a6d12',trim:'#e8c04a',eyes:'#fff3a0',gem:'#ffef7a',belt:'#6b4f0a'},items[0].icon,'You','#ffaa00');
-player(840,474,6,{style:'shark',helm:'#3a6fd6',visor:'#16326b',chest:'#4b86ee',chest2:'#3a6fd6',legs:'#3a6fd6',boots:'#22468f',trim:'#7fb6ff',eyes:'#a8f0ff',gem:'#a8f0ff'},chalRod,"Vallon's",'#5555ff');
+player(840,474,6,{style:'shark',helm:'#3a6fd6',visor:'#16326b',chest:'#4b86ee',chest2:'#3a6fd6',legs:'#3a6fd6',boots:'#22468f',trim:'#7fb6ff',eyes:'#a8f0ff',gem:'#a8f0ff'},chalRod,'Doggy','#5599ff');
 </script>
 </body>
 </html>
